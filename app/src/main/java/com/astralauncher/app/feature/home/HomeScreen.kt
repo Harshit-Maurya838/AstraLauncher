@@ -4,7 +4,12 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.MediaStore
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,6 +23,10 @@ import androidx.navigation.NavController
 import com.astralauncher.app.core.navigation.Screen
 import com.astralauncher.app.core.theme.Spacing
 import com.astralauncher.app.core.ui.components.*
+import com.astralauncher.app.feature.tasks.TaskItem
+import com.astralauncher.app.feature.notes.NoteCard
+import java.text.SimpleDateFormat
+import java.util.*
 
 @Composable
 fun HomeScreen(
@@ -25,7 +34,22 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val pinnedTasks by viewModel.pinnedTasks.collectAsState()
+    val pinnedNotes by viewModel.pinnedNotes.collectAsState()
+    val upcomingEvents by viewModel.upcomingEvents.collectAsState()
     val context = LocalContext.current
+    
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        viewModel.onCalendarPermissionResult(isGranted)
+    }
+
+    LaunchedEffect(uiState.calendarPermissionGranted) {
+        if (!uiState.calendarPermissionGranted) {
+            permissionLauncher.launch(android.Manifest.permission.READ_CALENDAR)
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -84,22 +108,44 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(Spacing.extraLarge))
 
-            // Quick Actions / Pinned
-            SectionHeader(title = "Pinned")
+            // Upcoming Events
+            if (uiState.calendarPermissionGranted && upcomingEvents.isNotEmpty()) {
+                val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
+                SectionHeader(title = "Upcoming Events")
+                Spacer(modifier = Modifier.height(Spacing.medium))
+                
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
+                    contentPadding = PaddingValues(end = Spacing.large)
+                ) {
+                    items(upcomingEvents) { event ->
+                        MinimalCard(modifier = Modifier.width(200.dp)) {
+                            Column(modifier = Modifier.padding(Spacing.medium)) {
+                                Text(event.title, style = MaterialTheme.typography.titleSmall, maxLines = 1)
+                                Text(timeFormat.format(Date(event.startTimeMillis)), style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(Spacing.large))
+            }
+
+            // Quick Actions & Productivity
+            SectionHeader(title = "Productivity")
             Spacer(modifier = Modifier.height(Spacing.medium))
             
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.medium)
             ) {
-                MinimalCard(modifier = Modifier.weight(1f).height(100.dp)) {
+                MinimalCard(modifier = Modifier.weight(1f).height(80.dp).clickable { navController.navigate("notes") }) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Notes", style = MaterialTheme.typography.bodyLarge)
+                        Text("Notes (${pinnedNotes.size})", style = MaterialTheme.typography.bodyLarge)
                     }
                 }
-                MinimalCard(modifier = Modifier.weight(1f).height(100.dp)) {
+                MinimalCard(modifier = Modifier.weight(1f).height(80.dp).clickable { navController.navigate("tasks") }) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Tasks", style = MaterialTheme.typography.bodyLarge)
+                        Text("Tasks (${pinnedTasks.size})", style = MaterialTheme.typography.bodyLarge)
                     }
                 }
             }

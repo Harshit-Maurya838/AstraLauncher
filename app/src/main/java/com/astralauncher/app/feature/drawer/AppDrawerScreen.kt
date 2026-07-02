@@ -22,14 +22,20 @@ import androidx.navigation.NavController
 import com.astralauncher.app.core.theme.AppDimensions
 import com.astralauncher.app.core.theme.Spacing
 import com.astralauncher.app.core.ui.components.AppTile
+import com.astralauncher.app.core.ui.components.SectionHeader
+import com.astralauncher.app.feature.notes.NoteCard
+import com.astralauncher.app.feature.search.UnifiedSearchViewModel
+import com.astralauncher.app.feature.tasks.TaskItem
 import com.astralauncher.app.domain.model.AppInfo
 
 @Composable
 fun AppDrawerScreen(
     navController: NavController,
-    viewModel: AppDrawerViewModel = hiltViewModel()
+    viewModel: UnifiedSearchViewModel = hiltViewModel()
 ) {
     val apps by viewModel.apps.collectAsState()
+    val tasks by viewModel.tasks.collectAsState()
+    val notes by viewModel.notes.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val context = LocalContext.current
 
@@ -66,7 +72,7 @@ fun AppDrawerScreen(
                     Box(modifier = Modifier.weight(1f)) {
                         if (searchQuery.isEmpty()) {
                             Text(
-                                text = "Search Apps...",
+                                text = "Search Apps, Tasks, Notes...",
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
@@ -102,6 +108,36 @@ fun AppDrawerScreen(
                 contentPadding = PaddingValues(vertical = Spacing.large),
                 verticalArrangement = Arrangement.spacedBy(Spacing.small)
             ) {
+                if (searchQuery.isNotEmpty()) {
+                    if (tasks.isNotEmpty()) {
+                        item { SectionHeader("Tasks", modifier = Modifier.padding(vertical = Spacing.small)) }
+                        items(tasks, key = { "task_${it.id}" }) { task ->
+                            TaskItem(
+                                task = task,
+                                onToggleComplete = { /* No-op in search */ },
+                                onTogglePin = { /* No-op in search */ },
+                                onDelete = { /* No-op in search */ }
+                            )
+                        }
+                    }
+                    
+                    if (notes.isNotEmpty()) {
+                        item { SectionHeader("Notes", modifier = Modifier.padding(vertical = Spacing.small)) }
+                        items(notes, key = { "note_${it.id}" }) { note ->
+                            NoteCard(
+                                note = note,
+                                onClick = { navController.navigate("note_editor/${note.id}") },
+                                onTogglePin = { /* No-op in search */ },
+                                onDelete = { /* No-op in search */ }
+                            )
+                        }
+                    }
+                    
+                    if (apps.isNotEmpty()) {
+                        item { SectionHeader("Apps", modifier = Modifier.padding(vertical = Spacing.small)) }
+                    }
+                }
+
                 items(apps, key = { it.packageName }) { app ->
                     AppTile(
                         app = app,
