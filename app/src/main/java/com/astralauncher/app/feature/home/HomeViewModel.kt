@@ -11,6 +11,7 @@ import com.astralauncher.app.domain.repository.NoteRepository
 import com.astralauncher.app.domain.repository.TaskRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -40,7 +41,9 @@ class HomeViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
-    val pinnedTasks: StateFlow<List<Task>> = taskRepository.getPinnedTasks()
+    val pendingTasks: StateFlow<List<Task>> = taskRepository.getAllTasks().map { tasks -> 
+        tasks.filter { !it.isCompleted }.sortedBy { it.dueDateMillis ?: Long.MAX_VALUE } 
+    }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val pinnedNotes: StateFlow<List<Note>> = noteRepository.getPinnedNotes()

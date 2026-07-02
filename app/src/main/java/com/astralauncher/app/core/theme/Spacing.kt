@@ -8,6 +8,8 @@ object Spacing {
     val medium = 16.dp
     val large = 24.dp
     val extraLarge = 32.dp
+    val massive = 48.dp
+    val gigantic = 64.dp
     
-    val defaultPadding = 20.dp
+    val defaultPadding = 16.dp
 }

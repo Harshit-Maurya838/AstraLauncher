@@ -2,65 +2,99 @@ package com.astralauncher.app.feature.home
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
-import android.provider.MediaStore
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.core.content.edit
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.astralauncher.app.core.navigation.Screen
 import com.astralauncher.app.core.theme.Spacing
 import com.astralauncher.app.core.ui.components.*
-import com.astralauncher.app.feature.tasks.TaskItem
-import com.astralauncher.app.feature.notes.NoteCard
-import java.text.SimpleDateFormat
-import java.util.*
+import com.astralauncher.app.feature.search.UnifiedSearchViewModel
+import com.astralauncher.app.feature.tasks.TasksViewModel
+import com.astralauncher.app.domain.model.AppInfo
 
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     navController: NavController,
-    viewModel: HomeViewModel = hiltViewModel()
+    viewModel: HomeViewModel = hiltViewModel(),
+    searchViewModel: UnifiedSearchViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val pinnedTasks by viewModel.pinnedTasks.collectAsState()
-    val pinnedNotes by viewModel.pinnedNotes.collectAsState()
-    val upcomingEvents by viewModel.upcomingEvents.collectAsState()
-    val context = LocalContext.current
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val pendingTasks by viewModel.pendingTasks.collectAsStateWithLifecycle()
+    val apps by searchViewModel.apps.collectAsStateWithLifecycle()
+    val searchQuery by searchViewModel.searchQuery.collectAsStateWithLifecycle()
     
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        viewModel.onCalendarPermissionResult(isGranted)
-    }
-
-    LaunchedEffect(uiState.calendarPermissionGranted) {
-        if (!uiState.calendarPermissionGranted) {
-            permissionLauncher.launch(android.Manifest.permission.READ_CALENDAR)
+    val tasksViewModel = androidx.hilt.navigation.compose.hiltViewModel<TasksViewModel>()
+    
+    val filteredTasks by remember(pendingTasks, searchQuery) {
+        derivedStateOf {
+            if (searchQuery.isBlank()) pendingTasks
+            else pendingTasks.filter { it.title.contains(searchQuery, ignoreCase = true) }
         }
     }
-
+    
+    val context = LocalContext.current
+    val sharedPrefs = remember { context.getSharedPreferences("launcher_prefs", Context.MODE_PRIVATE) }
+    
+    var isAppsSheetOpen by remember { mutableStateOf(false) }
+    var isFavoritePickerOpen by remember { mutableStateOf(false) }
+    var isAddTaskSheetOpen by remember { mutableStateOf(false) }
+    
+    val appsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    
+    // Manage Favorite Apps
+    var favoritePackages by remember { 
+        mutableStateOf(sharedPrefs.getStringSet("favorite_apps", emptySet()) ?: emptySet()) 
+    }
+    
+    val favoriteApps = remember(favoritePackages, apps) {
+        apps.filter { it.packageName in favoritePackages }
+    }
+    
+    val toggleFavorite = { app: AppInfo ->
+        val current = favoritePackages.toMutableSet()
+        if (current.contains(app.packageName)) {
+            current.remove(app.packageName)
+        } else {
+            current.clear()
+            current.add(app.packageName)
+        }
+        favoritePackages = current
+        sharedPrefs.edit { putStringSet("favorite_apps", current) }
+    }
+    
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = com.astralauncher.app.core.theme.RefBackground,
         bottomBar = {
             FloatingDock(
-                onPhoneClick = { launchIntent(context, Intent.ACTION_DIAL) },
-                onMessageClick = { launchIntent(context, Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_MESSAGING) },
-                onBrowserClick = { launchIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse("http://www.google.com"))) },
-                onCameraClick = { launchIntent(context, MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA) },
-                onDrawerClick = { navController.navigate(Screen.Drawer.route) },
-                modifier = Modifier.padding(bottom = 16.dp)
+                favoriteApps = favoriteApps,
+                onFavoritePlaceholderClick = { isFavoritePickerOpen = true },
+                onAppClick = { app ->
+                    app.launchIntent?.let { launchIntent(context, it) }
+                },
+                onRemoveFavorite = { app -> toggleFavorite(app) },
+                onAddClick = { isAddTaskSheetOpen = true },
+                onAppsClick = { isAppsSheetOpen = true },
+                modifier = Modifier.padding(bottom = Spacing.medium)
             )
         }
     ) { paddingValues ->
@@ -76,13 +110,13 @@ fun HomeScreen(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
                 Column {
                     Text(
                         text = uiState.greeting,
                         style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+                        color = com.astralauncher.app.core.theme.RefSecondaryText
                     )
                     Spacer(modifier = Modifier.height(Spacing.extraSmall))
                     LargeClock(timeString = uiState.time)
@@ -90,65 +124,192 @@ fun HomeScreen(
                     DateWidget(dateString = uiState.date)
                 }
                 
-                IconButton(onClick = { navController.navigate(Screen.Settings.route) }) {
-                    Icon(
-                        imageVector = Icons.Outlined.Settings,
-                        contentDescription = "Settings",
-                        tint = MaterialTheme.colorScheme.onBackground
-                    )
-                }
+                CalendarWidget()
             }
 
-            Spacer(modifier = Modifier.height(Spacing.extraLarge))
+            Spacer(modifier = Modifier.height(Spacing.massive))
 
             // Search Bar
             SearchBar(
-                onClick = { navController.navigate(Screen.Drawer.route) }
+                onClick = { isAppsSheetOpen = true }
             )
 
-            Spacer(modifier = Modifier.height(Spacing.extraLarge))
+            Spacer(modifier = Modifier.height(Spacing.medium))
+            
+            Text(
+                text = "✓ TASKS • ${filteredTasks.size}",
+                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
+                color = Color.Gray,
+                modifier = Modifier.padding(vertical = Spacing.small)
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.small))
 
-            // Upcoming Events
-            if (uiState.calendarPermissionGranted && upcomingEvents.isNotEmpty()) {
-                val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
-                SectionHeader(title = "Upcoming Events")
-                Spacer(modifier = Modifier.height(Spacing.medium))
-                
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
-                    contentPadding = PaddingValues(end = Spacing.large)
+            if (filteredTasks.isEmpty()) {
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    items(upcomingEvents) { event ->
-                        MinimalCard(modifier = Modifier.width(200.dp)) {
-                            Column(modifier = Modifier.padding(Spacing.medium)) {
-                                Text(event.title, style = MaterialTheme.typography.titleSmall, maxLines = 1)
-                                Text(timeFormat.format(Date(event.startTimeMillis)), style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = "No upcoming tasks",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Gray
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(bottom = Spacing.extraLarge),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(filteredTasks, key = { it.id }) { task ->
+                        TaskCard(
+                            task = task,
+                            onComplete = { tasksViewModel.toggleTaskCompletion(it) },
+                            modifier = Modifier.animateItemPlacement()
+                        )
+                    }
+                }
+            }
+        }
+        
+        if (isAppsSheetOpen) {
+            ModalBottomSheet(
+                onDismissRequest = { isAppsSheetOpen = false },
+                sheetState = appsSheetState,
+                containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.85f),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+                dragHandle = { BottomSheetDefaults.DragHandle() },
+                modifier = Modifier.fillMaxHeight(0.6f)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = Spacing.large)
+                ) {
+                    // Quick Search Inside Sheet
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = searchQuery,
+                        onValueChange = searchViewModel::onSearchQueryChange,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = Spacing.medium)
+                            .background(com.astralauncher.app.core.theme.LightGray, CircleShape)
+                            .padding(horizontal = Spacing.large, vertical = Spacing.medium),
+                        singleLine = true,
+                        decorationBox = { innerTextField ->
+                            if (searchQuery.isEmpty()) {
+                                Text("Search Apps...", color = com.astralauncher.app.core.theme.RefSecondaryText)
+                            }
+                            innerTextField()
+                        }
+                    )
+                    
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(vertical = Spacing.medium)
+                    ) {
+                        items(apps) { app ->
+                            com.astralauncher.app.core.ui.components.AppTile(
+                                app = app,
+                                onClick = {
+                                    app.launchIntent?.let { launchIntent(context, it) }
+                                }
+                            )
+                        }
+                    }
+                    
+                    HorizontalDivider(color = com.astralauncher.app.core.theme.LightGray)
+                    
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                isAppsSheetOpen = false
+                                navController.navigate(Screen.Settings.route)
+                            }
+                            .padding(vertical = Spacing.large),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Settings,
+                            contentDescription = "Settings",
+                            tint = MaterialTheme.colorScheme.onBackground
+                        )
+                        Spacer(modifier = Modifier.width(Spacing.medium))
+                        Column {
+                            Text("Settings", style = MaterialTheme.typography.titleMedium)
+                            Text("Launcher Preferences", style = MaterialTheme.typography.bodyMedium, color = com.astralauncher.app.core.theme.RefSecondaryText)
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(Spacing.medium))
+                }
+            }
+        }
+        
+        if (isFavoritePickerOpen) {
+            ModalBottomSheet(
+                onDismissRequest = { isFavoritePickerOpen = false },
+                containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.85f),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+                modifier = Modifier.fillMaxHeight(0.6f)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = Spacing.large)
+                ) {
+                    SectionHeader("Select Favorite App")
+                    Spacer(modifier = Modifier.height(Spacing.medium))
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = Spacing.large)
+                    ) {
+                        items(apps) { app ->
+                            val isSelected = favoritePackages.contains(app.packageName)
+                            
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { toggleFavorite(app) }
+                                    .padding(vertical = Spacing.small),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                androidx.compose.foundation.Image(
+                                    painter = com.google.accompanist.drawablepainter.rememberDrawablePainter(drawable = app.icon),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(48.dp)
+                                )
+                                Spacer(modifier = Modifier.width(Spacing.medium))
+                                Text(
+                                    text = app.label,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    modifier = Modifier.weight(1f),
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                                if (isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Filled.CheckCircle,
+                                        contentDescription = "Selected",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                             }
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(Spacing.large))
             }
-
-            // Quick Actions & Productivity
-            SectionHeader(title = "Productivity")
-            Spacer(modifier = Modifier.height(Spacing.medium))
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.medium)
-            ) {
-                MinimalCard(modifier = Modifier.weight(1f).height(80.dp).clickable { navController.navigate("notes") }) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Notes (${pinnedNotes.size})", style = MaterialTheme.typography.bodyLarge)
-                    }
+        }
+        
+        if (isAddTaskSheetOpen) {
+            AddTaskBottomSheet(
+                onDismiss = { isAddTaskSheetOpen = false },
+                onSave = { title, priority ->
+                    tasksViewModel.addTask(title, priority)
+                    isAddTaskSheetOpen = false
                 }
-                MinimalCard(modifier = Modifier.weight(1f).height(80.dp).clickable { navController.navigate("tasks") }) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Tasks (${pinnedTasks.size})", style = MaterialTheme.typography.bodyLarge)
-                    }
-                }
-            }
+            )
         }
     }
 }

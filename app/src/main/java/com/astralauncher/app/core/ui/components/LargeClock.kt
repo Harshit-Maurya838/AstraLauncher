@@ -35,18 +35,18 @@ fun LargeClock(
                 style = MaterialTheme.typography.displayLarge.copy(
                     drawStyle = Stroke(
                         miter = 10f,
-                        width = 3f
+                        width = 4f
                     )
                 ),
                 color = MaterialTheme.colorScheme.onBackground
             )
             
-            Spacer(modifier = Modifier.width(Spacing.medium))
+            Spacer(modifier = Modifier.width(Spacing.small))
             
             // Bold Minutes
             Text(
                 text = minutes,
-                style = MaterialTheme.typography.displayMedium,
+                style = MaterialTheme.typography.displayLarge,
                 color = MaterialTheme.colorScheme.onBackground
             )
         }

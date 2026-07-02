@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -24,57 +25,80 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Text
+import androidx.compose.foundation.Image
+import com.google.accompanist.drawablepainter.rememberDrawablePainter
+import com.astralauncher.app.domain.model.AppInfo
 import com.astralauncher.app.core.theme.AppDimensions
 import com.astralauncher.app.core.theme.Black
 import com.astralauncher.app.core.theme.White
 
 @Composable
 fun FloatingDock(
-    onPhoneClick: () -> Unit,
-    onMessageClick: () -> Unit,
-    onBrowserClick: () -> Unit,
-    onCameraClick: () -> Unit,
-    onDrawerClick: () -> Unit,
+    favoriteApps: List<AppInfo>,
+    onFavoritePlaceholderClick: () -> Unit,
+    onAppClick: (AppInfo) -> Unit,
+    onRemoveFavorite: (AppInfo) -> Unit,
+    onAddClick: () -> Unit,
+    onAppsClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
         modifier = modifier
-            .padding(horizontal = 24.dp, vertical = 24.dp)
+            .padding(horizontal = 32.dp, vertical = 32.dp)
             .fillMaxWidth()
-            .height(AppDimensions.dockHeight)
+            .height(AppDimensions.dockHeight + 8.dp) // Slightly taller
             .shadow(
-                elevation = 8.dp,
-                shape = RoundedCornerShape(AppDimensions.cornerRadius),
-                ambientColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f),
-                spotColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f)
+                elevation = 16.dp, // more shadow
+                shape = RoundedCornerShape(32.dp), // More rounded
+                ambientColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.15f),
+                spotColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.15f)
             ),
-        shape = RoundedCornerShape(AppDimensions.cornerRadius),
+        shape = RoundedCornerShape(32.dp),
         // Translucent background for "blur" effect
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f), // High opacity
     ) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp),
+                .padding(horizontal = 32.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            DockAction(icon = Icons.Outlined.Phone, onClick = onPhoneClick)
-            DockAction(icon = Icons.Outlined.Message, onClick = onMessageClick)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (favoriteApps.isEmpty()) {
+                    DockAction(
+                        icon = Icons.Outlined.FavoriteBorder, 
+                        onClick = onFavoritePlaceholderClick
+                    )
+                } else {
+                    favoriteApps.take(1).forEach { app ->
+                        DockAppAction(
+                            app = app,
+                            onClick = { onAppClick(app) },
+                            onRemove = { onRemoveFavorite(app) }
+                        )
+                    }
+                }
+            }
             
-            // Center Add Button (Drawer for now, or animated Add)
-            CenterDockAction(onClick = onDrawerClick)
+            // Center Add Button
+            CenterDockAction(onClick = onAddClick)
             
-            DockAction(icon = Icons.Outlined.Language, onClick = onBrowserClick)
-            DockAction(icon = Icons.Outlined.CameraAlt, onClick = onCameraClick)
+            DockAction(icon = Icons.Outlined.GridView, onClick = onAppsClick)
         }
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun DockAction(
     icon: ImageVector,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -91,10 +115,11 @@ fun DockAction(
             .size(48.dp)
             .scale(scale)
             .clip(CircleShape)
-            .clickable(
+            .combinedClickable(
                 interactionSource = interactionSource,
-                indication = null, // Custom indication handled by scale
-                onClick = onClick
+                indication = null,
+                onClick = onClick,
+                onLongClick = onLongClick
             ),
         contentAlignment = Alignment.Center
     ) {
@@ -136,9 +161,66 @@ fun CenterDockAction(
     ) {
         Icon(
             imageVector = Icons.Default.Add,
-            contentDescription = "Drawer",
+            contentDescription = "Add",
             modifier = Modifier.size(32.dp),
             tint = White
         )
+    }
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+fun DockAppAction(
+    app: AppInfo,
+    onClick: () -> Unit,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    var showMenu by remember { mutableStateOf(false) }
+    
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.85f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "scale_anim"
+    )
+
+    Box(
+        modifier = modifier
+            .size(48.dp)
+            .scale(scale)
+            .clip(CircleShape)
+            .combinedClickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+                onLongClick = { showMenu = true }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = rememberDrawablePainter(drawable = app.icon),
+            contentDescription = app.label,
+            modifier = Modifier.size(AppDimensions.dockIconSize)
+        )
+        
+        DropdownMenu(
+            expanded = showMenu,
+            onDismissRequest = { showMenu = false },
+            offset = DpOffset(x = 0.dp, y = (-100).dp)
+        ) {
+            DropdownMenuItem(
+                text = { Text("Remove from Favorites") },
+                onClick = { 
+                    showMenu = false
+                    onRemove()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Cancel") },
+                onClick = { showMenu = false }
+            )
+        }
     }
 }

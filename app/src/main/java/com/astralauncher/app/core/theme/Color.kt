@@ -5,13 +5,18 @@ import androidx.compose.ui.graphics.Color
 // Light Theme Colors
 val White = Color(0xFFFFFFFF)
 val OffWhite = Color(0xFFF7F7F5)
-val LightGray = Color(0xFFECECEC)
+val LightGray = Color(0xFFE5E5E5)
 val MediumGray = Color(0xFF9E9E9E)
-val DarkGray = Color(0xFF2D2D2D)
-val Black = Color(0xFF000000)
+val DarkGray = Color(0xFF7A7A7A)
+val Black = Color(0xFF111111)
 
-// System accents - Only used if user selects accent, otherwise monochrome
-val AccentPrimary = Color(0xFF000000) // Default black accent for monochrome feel
+// Reference minimalist exact colors
+val RefBackground = Color(0xFFF7F7F5)
+val RefCards = Color(0xFFFFFFFF)
+val RefText = Color(0xFF111111)
+val RefSecondaryText = Color(0xFF7A7A7A)
+val RefInactiveDot = Color(0xFFE5E5E5)
+val RefActiveDot = Color(0xFF111111)
 
 val md_theme_light_primary = Black
 val md_theme_light_onPrimary = White

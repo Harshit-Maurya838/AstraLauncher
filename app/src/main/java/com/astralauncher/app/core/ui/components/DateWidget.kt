@@ -6,42 +6,59 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.astralauncher.app.core.theme.Spacing
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 
 @Composable
 fun DateWidget(
-    dateString: String,
+    dateString: String, // Kept for backwards compatibility if needed, but we'll compute it
     modifier: Modifier = Modifier
 ) {
-    // We expect dateString to be something like "Wednesday, Jul 12"
-    // Or whatever format HomeViewModel emits
-    val parts = dateString.split(",")
-    val dayOfWeek = if (parts.isNotEmpty()) parts[0].trim() else ""
-    val monthDate = if (parts.size > 1) parts[1].trim().uppercase(Locale.getDefault()) else ""
+    val calendar = remember { Calendar.getInstance() }
+    val monthFormat = remember { SimpleDateFormat("MMM", Locale.getDefault()) }
+    
+    val currentMonth = monthFormat.format(calendar.time).uppercase(Locale.getDefault())
+    val currentDay = calendar.get(Calendar.DAY_OF_MONTH)
+    val totalDays = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
     
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (monthDate.isNotEmpty()) {
-            Text(
-                text = monthDate,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.width(Spacing.small))
-        }
+        Text(
+            text = currentMonth,
+            style = MaterialTheme.typography.labelLarge.copy(
+                letterSpacing = 2.sp,
+                fontWeight = FontWeight.Bold
+            ),
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        
+        Spacer(modifier = Modifier.width(Spacing.medium))
         
         Text(
-            text = dayOfWeek,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+            text = "•",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+        )
+        
+        Spacer(modifier = Modifier.width(Spacing.medium))
+        
+        Text(
+            text = "$currentDay / $totalDays",
+            style = MaterialTheme.typography.labelLarge.copy(
+                letterSpacing = 1.sp,
+                fontWeight = FontWeight.Medium
+            ),
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
         )
     }
 }

@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.astralauncher.app.core.theme.AppDimensions
 import com.astralauncher.app.core.theme.Spacing
 
@@ -24,7 +25,7 @@ import com.astralauncher.app.core.theme.Spacing
 fun SearchBar(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    placeholder: String = "Search Apps, Tasks or Notes"
+    placeholder: String = "Google Search"
 ) {
     Surface(
         modifier = modifier
@@ -32,7 +33,8 @@ fun SearchBar(
             .height(AppDimensions.searchBarHeight)
             .clickable(onClick = onClick),
         shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        color = com.astralauncher.app.core.theme.LightGray,
+        shadowElevation = 0.dp
     ) {
         Row(
             modifier = Modifier.padding(horizontal = Spacing.large),
